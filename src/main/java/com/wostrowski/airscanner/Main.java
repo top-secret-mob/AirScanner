@@ -1,13 +1,9 @@
 package com.wostrowski.airscanner;
 
-import com.wostrowski.airscanner.scanner.StationDetector;
-import com.wostrowski.airscanner.storage.model.Station;
+import com.wostrowski.airscanner.storage.model.Config;
 import com.wostrowski.airscanner.storage.model.StorageConnector;
-import org.tudelft.aircrack.frame.Address;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 public class Main {
 
@@ -16,6 +12,14 @@ public class Main {
     }
 
     public Main() {
-        new StationMonitor(TimeUnit.SECONDS.toMillis(15)).startMonitoring();
+        final Config config;
+        try {
+            config = StorageConnector.open().selectConfig();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        new StationMonitor(config).startMonitoring();
     }
 }

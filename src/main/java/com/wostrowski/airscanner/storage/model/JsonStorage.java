@@ -15,8 +15,7 @@ import java.util.List;
  */
 public class JsonStorage implements IStorage {
     private final String path;
-    private BufferedReader reader;
-    private Gson gson;
+    private Wrapper wrapper;
 
     /**
      * @param file JSON file path
@@ -32,15 +31,30 @@ public class JsonStorage implements IStorage {
      * @throws IOException
      */
     void open() throws IOException {
-        this.reader = new BufferedReader(new FileReader(path));
-        this.gson = new Gson();
+        final BufferedReader reader = new BufferedReader(new FileReader(path));
+        final Gson gson = new Gson();
+        this.wrapper = gson.fromJson(reader, Wrapper.class);
+    }
+
+    @Override
+    public Config selectConfig() {
+        Preconditions.checkState(wrapper != null, "open() must be called first");
+
+        return wrapper.config;
     }
 
     @Override
     public List<Station> selectStations() {
-        Preconditions.checkState(reader != null, "open() must be called first");
+        Preconditions.checkState(wrapper != null, "open() must be called first");
 
-        Station[] stations = gson.fromJson(reader, Station[].class);
-        return Lists.newArrayList(stations);
+        return Lists.newArrayList(wrapper.stations);
+    }
+
+    /**
+     * Config wrapper class
+     */
+    private class Wrapper {
+        Config config;
+        Station[] stations;
     }
 }

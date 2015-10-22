@@ -1,10 +1,17 @@
-[
-  {
-    "id": "123",
-    "address": "f8:a9:d0:18:d2:d2"
+{
+  "config": {
+    "ttl": 120000,
+    "token": "",
+    "ws_host" : "https://localhost:8081/gcm"
   },
-  {
-    "id": "124",
-    "address": "f8:a9:d0:18:d2:f2"
-  }
-]
+  "stations": [
+    {
+      "id": "123",
+      "address": "f8:a9:d0:18:d2:d2"
+    },
+    {
+      "id": "124",
+      "address": "f8:a9:d0:18:d2:f2"
+    }
+  ]
+}

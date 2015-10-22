@@ -288,7 +288,7 @@ public class StationDetector {
                     } catch (InterruptedException ex) {
                         throw  ex;
                     } catch (Exception ex) {
-                        Log.e("Failed to monitor channels", ex);
+                        Log.e("Channels monitoring error, " + ex.getMessage());
                     }
                 }
             } catch (InterruptedException ignore) {
