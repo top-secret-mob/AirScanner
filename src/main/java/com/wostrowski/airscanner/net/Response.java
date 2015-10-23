@@ -1,4 +1,4 @@
-package com.wostrowski.airscanner.gcm;
+package com.wostrowski.airscanner.net;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;

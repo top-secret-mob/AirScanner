@@ -50,10 +50,10 @@ public class StationDetector {
 
         @Override
         public void visit(DataFrame frame) {
-            final String add1 = frame.getAddress1() != null ? frame.getAddress1().toString() : null;
-            final String add2 = frame.getAddress2() != null ? frame.getAddress2().toString() : null;
-            final String add3 = frame.getAddress3() != null ? frame.getAddress3().toString() : null;
-            final String add4 = frame.getAddress4() != null ? frame.getAddress4().toString() : null;
+            final String add1 = frame.getAddress1() != null ? frame.getAddress1().toString().toLowerCase() : null;
+            final String add2 = frame.getAddress2() != null ? frame.getAddress2().toString().toLowerCase() : null;
+            final String add3 = frame.getAddress3() != null ? frame.getAddress3().toString().toLowerCase() : null;
+            final String add4 = frame.getAddress4() != null ? frame.getAddress4().toString().toLowerCase() : null;
 
             if (!Strings.isNullOrEmpty(add1)) {
                 Station station = stations.get(add1);
@@ -98,7 +98,7 @@ public class StationDetector {
 
         @Override
         public void visit(ProbeRequest frame) {
-            final String add1 = frame.getSA() != null ? frame.getSA().toString() : null;
+            final String add1 = frame.getSA() != null ? frame.getSA().toString().toLowerCase() : null;
             if (add1 != null) {
                 Station station = stations.get(add1);
                 if (station == null) {
@@ -114,8 +114,8 @@ public class StationDetector {
 
         @Override
         public void visit(ProbeResponse frame) {
-            final String add1 = frame.getAddress1() != null ? frame.getAddress1().toString() : null;
-            final String add2 = frame.getSA() != null ? frame.getSA().toString() : null;
+            final String add1 = frame.getAddress1() != null ? frame.getAddress1().toString().toLowerCase() : null;
+            final String add2 = frame.getSA() != null ? frame.getSA().toString().toLowerCase() : null;
 
             if (!Strings.isNullOrEmpty(add1)) {
                 Station station = stations.get(add1);
@@ -140,7 +140,7 @@ public class StationDetector {
 
         @Override
         public void visit(AckFrame frame) {
-            final String add1 = frame.getRA() != null ? frame.getRA().toString() : null;
+            final String add1 = frame.getRA() != null ? frame.getRA().toString().toLowerCase() : null;
 
             if (!Strings.isNullOrEmpty(add1)) {
                 Station station = stations.get(add1);
@@ -155,7 +155,7 @@ public class StationDetector {
 
         @Override
         public void visit(BlockAckFrame frame) {
-            final String add1 = frame.getRA() != null ? frame.getRA().toString() : null;
+            final String add1 = frame.getRA() != null ? frame.getRA().toString().toLowerCase() : null;
 
             if (!Strings.isNullOrEmpty(add1)) {
                 Station station = stations.get(add1);
@@ -167,7 +167,7 @@ public class StationDetector {
                 station.address = frame.getRA();
             }
 
-            final String add2 = frame.getTA() != null ? frame.getTA().toString() : null;
+            final String add2 = frame.getTA() != null ? frame.getTA().toString().toLowerCase() : null;
 
             if (!Strings.isNullOrEmpty(add2)) {
                 Station station = stations.get(add2);
@@ -182,7 +182,7 @@ public class StationDetector {
 
         @Override
         public void visit(RtsFrame frame) {
-            final String add1 = frame.getRA() != null ? frame.getRA().toString() : null;
+            final String add1 = frame.getRA() != null ? frame.getRA().toString().toLowerCase() : null;
 
             if (!Strings.isNullOrEmpty(add1)) {
                 Station station = stations.get(add1);
@@ -194,7 +194,7 @@ public class StationDetector {
                 station.address = frame.getRA();
             }
 
-            final String add2 = frame.getTA() != null ? frame.getTA().toString() : null;
+            final String add2 = frame.getTA() != null ? frame.getTA().toString().toLowerCase() : null;
 
             if (!Strings.isNullOrEmpty(add2)) {
                 Station station = stations.get(add2);
@@ -209,7 +209,7 @@ public class StationDetector {
 
         @Override
         public void visit(CtsFrame frame) {
-            final String add1 = frame.getRA() != null ? frame.getRA().toString() : null;
+            final String add1 = frame.getRA() != null ? frame.getRA().toString().toLowerCase() : null;
 
             if (!Strings.isNullOrEmpty(add1)) {
                 Station station = stations.get(add1);
@@ -275,7 +275,8 @@ public class StationDetector {
                             probeChannel(iface, i);
 
                             if (!stations.isEmpty()) {
-                                final Address[] addresses = Iterables.toArray(Iterables.transform(stations.keySet(), new Function<String, Address>() {
+                                final Address[] addresses = Iterables.toArray(Iterables.transform(stations.keySet(),
+                                        new Function<String, Address>() {
                                     @Override
                                     public Address apply(String key) {
                                         return stations.get(key).address;

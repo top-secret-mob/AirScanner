@@ -5,6 +5,6 @@ package com.wostrowski.airscanner.storage.model;
  */
 public class Config {
     public long ttl = -1;
-    public String token;
-    public String ws_host;
+    public String gcmApi;
+    public String resetApi;
 }

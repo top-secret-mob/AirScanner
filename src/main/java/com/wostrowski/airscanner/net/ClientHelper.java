@@ -1,4 +1,4 @@
-package com.wostrowski.airscanner.gcm;
+package com.wostrowski.airscanner.net;
 
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.config.ClientConfig;

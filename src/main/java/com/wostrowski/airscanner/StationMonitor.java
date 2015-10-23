@@ -1,7 +1,7 @@
 package com.wostrowski.airscanner;
 
 import com.google.common.collect.Lists;
-import com.wostrowski.airscanner.gcm.GcmService;
+import com.wostrowski.airscanner.net.WebServiceAdapter;
 import com.wostrowski.airscanner.scanner.StationDetector;
 import com.wostrowski.airscanner.storage.model.Config;
 import com.wostrowski.airscanner.storage.model.Station;
@@ -21,7 +21,7 @@ public class StationMonitor implements Runnable, StationDetector.StationDetector
     private static final long DEFAULT_TTL = TimeUnit.MINUTES.toMillis(5);
     private long ttl = DEFAULT_TTL;
     private final StationDetector detector;
-    private final GcmService gcmService;
+    private final WebServiceAdapter webServiceAdapter;
     private Thread monitorTread;
     private final BlockingQueue<Address[]> detectionQueue = new LinkedBlockingQueue<>(1000);
     // <MAC, Station>
@@ -41,7 +41,7 @@ public class StationMonitor implements Runnable, StationDetector.StationDetector
 
     public StationMonitor(Config config) {
         detector = new StationDetector(this);
-        gcmService = new GcmService(config.ws_host, config.token);
+        webServiceAdapter = new WebServiceAdapter(config.gcmApi, config.resetApi);
     }
 
     public void startMonitoring() {
@@ -69,6 +69,9 @@ public class StationMonitor implements Runnable, StationDetector.StationDetector
     @Override
     public void run() {
         Log.d("Stations monitor started");
+
+        // reset previous station statuses
+        webServiceAdapter.sendResetMessage();
 
         try {
             detector.start();
@@ -131,7 +134,7 @@ public class StationMonitor implements Runnable, StationDetector.StationDetector
             onlineStations.put(station.address, new StationTtl(station, System.currentTimeMillis()));
 
             Log.d("New station detected: " + station.address);
-            gcmService.sendWelcomeMsg(station.address);
+            webServiceAdapter.sendWelcomeMsg(station.address);
         }
     }
 
@@ -142,7 +145,7 @@ public class StationMonitor implements Runnable, StationDetector.StationDetector
                 Log.d("Station TTL expired, station= " + station.station.address
                         + " last updated=" + new Date(station.lastUpdateTime));
                 onlineStations.remove(station.station.address);
-                gcmService.sendGoodbyMsg(station.station.address);
+                webServiceAdapter.sendGoodbyMsg(station.station.address);
             }
         }
     }

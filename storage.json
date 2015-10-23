@@ -1,8 +1,8 @@
 {
   "config": {
-    "ttl": 120000,
-    "token": "",
-    "ws_host" : "https://localhost:8081/gcm"
+    "ttl": 20000,
+    "gcmApi" : "https://localhost:8081/status",
+    "resetApi" : "https://localhost:8081/status/reset"
   },
   "stations": [
     {
