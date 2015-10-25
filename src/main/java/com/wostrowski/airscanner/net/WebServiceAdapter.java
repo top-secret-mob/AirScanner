@@ -8,8 +8,6 @@ import com.sun.jersey.core.impl.provider.entity.StringProvider;
 import com.wostrowski.airscanner.Log;
 
 import javax.ws.rs.core.MediaType;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * Created by wojtek on 22.10.15.
@@ -17,78 +15,83 @@ import java.util.concurrent.Executors;
 public class WebServiceAdapter {
     private final String gcmApi;
     private final String resetApi;
-    private final ExecutorService threadPool = Executors.newFixedThreadPool(2);
+    private final String syncApi;
+    private final Client client;
 
-    public WebServiceAdapter(String gcmApi, String resetApi) {
+    public WebServiceAdapter(String gcmApi, String resetApi, String syncApi) {
         this.gcmApi = gcmApi;
         this.resetApi = resetApi;
+        this.syncApi = syncApi;
+
+        ClientConfig cc = new DefaultClientConfig();
+
+        cc.getClasses().add(JacksonJsonProvider.class);
+        cc.getClasses().add(StringProvider.class);
+        this.client = ClientHelper.create(cc);
     }
 
-    public void sendWelcomeMsg(String address) {
-        sendMsg(gcmApi, new StatusRequest(address, true));
-    }
+    public StatusResponse sendStatusMsg(String[] addresses) {
+        try {
+            final StatusRequest request = new StatusRequest(addresses);
+            Log.d("Sending status message: " + request);
 
-    public void sendGoodbyMsg(String address) {
-        sendMsg(gcmApi, new StatusRequest(address, false));
+            final StatusResponse response = client.resource(gcmApi)
+                    .accept(MediaType.APPLICATION_JSON_TYPE)
+                    .type(MediaType.APPLICATION_JSON_TYPE)
+                    .post(StatusResponse.class, request);
+
+            if (response.getStatus() == Response.Status.error) {
+                Log.e("Failed to send message, error: " + response.getError());
+            } else {
+                Log.d("Response: " + response);
+            }
+            return response;
+        } catch (Exception ex) {
+            Log.e("Failed to send message, error: " + ex.getMessage());
+        }
+
+        return null;
     }
 
     public void sendResetMessage() {
-        sendMsg(resetApi);
+        try {
+            Log.d("Sending reset message");
+
+            final Response response = client.resource(resetApi)
+                    .accept(MediaType.APPLICATION_JSON_TYPE)
+                    .type(MediaType.APPLICATION_JSON_TYPE)
+                    .post(Response.class);
+
+            if (response.getStatus() == Response.Status.error) {
+                Log.e("Failed to send message, error: " + response.getError());
+            } else {
+                Log.d("Response: " + response);
+            }
+        } catch (Exception ex) {
+            Log.e("Failed to send message, error: " + ex.getMessage());
+        }
     }
 
-    private void sendMsg(final String api) {
-        threadPool.execute(new Runnable() {
-            @Override
-            public void run() {
-                ClientConfig cc = new DefaultClientConfig();
+    public StatusResponse sendSyncMessage(long lastSyncTime) {
+        try {
+            final SyncRequest request = new SyncRequest(lastSyncTime);
+            Log.d("Sending sync message: " + request);
 
-                cc.getClasses().add(JacksonJsonProvider.class);
-                cc.getClasses().add(StringProvider.class);
-                final Client client = ClientHelper.create(cc);
+            final StatusResponse response = client.resource(syncApi)
+                    .accept(MediaType.APPLICATION_JSON_TYPE)
+                    .type(MediaType.APPLICATION_JSON_TYPE)
+                    .post(StatusResponse.class, request);
 
-                try {
-                    final Response response = client.resource(api)
-                            .accept(MediaType.APPLICATION_JSON_TYPE)
-                            .type(MediaType.APPLICATION_JSON_TYPE)
-                            .post(Response.class);
-
-                    if (response.getStatus() == Response.Status.error) {
-                        Log.e("Failed to send GCM message, error: " + response.getError());
-                    } else {
-                        Log.d("GCM message sent");
-                    }
-                } catch (Exception ex) {
-                    Log.e("Failed to send GCM message, error: " + ex.getMessage());
-                }
+            if (response.getStatus() == Response.Status.error) {
+                Log.e("Failed to send message, error: " + response.getError());
+            } else {
+                Log.d("Response: " + response);
             }
-        });
-    }
+            return response;
+        } catch (Exception ex) {
+            Log.e("Failed to send  message, error: " + ex.getMessage());
+        }
 
-    private void sendMsg(final String api, final StatusRequest msg) {
-        threadPool.execute(new Runnable() {
-            @Override
-            public void run() {
-                ClientConfig cc = new DefaultClientConfig();
-
-                cc.getClasses().add(JacksonJsonProvider.class);
-                cc.getClasses().add(StringProvider.class);
-                final Client client = ClientHelper.create(cc);
-
-                try {
-                    final Response response = client.resource(api)
-                            .accept(MediaType.APPLICATION_JSON_TYPE)
-                            .type(MediaType.APPLICATION_JSON_TYPE)
-                            .post(Response.class, msg);
-
-                    if (response.getStatus() == Response.Status.error) {
-                        Log.e("Failed to send GCM message for '" + msg.getAddress() + "', error: " + response.getError());
-                    } else {
-                        Log.d("GCM message sent to '" + msg.getAddress() + "'");
-                    }
-                } catch (Exception ex) {
-                    Log.e("Failed to send GCM message for '" + msg.getAddress() + "', error: " + ex.getMessage());
-                }
-            }
-        });
+        return null;
     }
 }

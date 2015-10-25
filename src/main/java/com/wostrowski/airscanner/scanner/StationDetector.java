@@ -248,7 +248,7 @@ public class StationDetector {
          *
          * @param stations list of MAC addresses of detected stations
          */
-        void onDetect(final Address[] stations);
+        void onDetect(final String[] stations);
     }
 
 
@@ -275,19 +275,19 @@ public class StationDetector {
                             probeChannel(iface, i);
 
                             if (!stations.isEmpty()) {
-                                final Address[] addresses = Iterables.toArray(Iterables.transform(stations.keySet(),
-                                        new Function<String, Address>() {
-                                    @Override
-                                    public Address apply(String key) {
-                                        return stations.get(key).address;
-                                    }
-                                }), Address.class);
+                                final String[] addresses = Iterables.toArray(Iterables.transform(stations.keySet(),
+                                        new Function<String, String>() {
+                                            @Override
+                                            public String apply(String key) {
+                                                return stations.get(key).address.toString();
+                                            }
+                                        }), String.class);
 
                                 listener.onDetect(addresses);
                             }
                         }
                     } catch (InterruptedException ex) {
-                        throw  ex;
+                        throw ex;
                     } catch (Exception ex) {
                         Log.e("Channels monitoring error, " + ex.getMessage());
                     }

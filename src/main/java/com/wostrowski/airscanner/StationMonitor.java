@@ -1,14 +1,12 @@
 package com.wostrowski.airscanner;
 
-import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import com.wostrowski.airscanner.net.Response;
+import com.wostrowski.airscanner.net.StatusResponse;
 import com.wostrowski.airscanner.net.WebServiceAdapter;
 import com.wostrowski.airscanner.scanner.StationDetector;
 import com.wostrowski.airscanner.storage.model.Config;
-import com.wostrowski.airscanner.storage.model.Station;
-import com.wostrowski.airscanner.storage.model.StorageConnector;
-import org.tudelft.aircrack.frame.Address;
 
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -18,30 +16,38 @@ import java.util.concurrent.TimeUnit;
  * Monitors state of all detected stations
  */
 public class StationMonitor implements Runnable, StationDetector.StationDetectorListener {
-    private static final long DEFAULT_TTL = TimeUnit.MINUTES.toMillis(5);
-    private long ttl = DEFAULT_TTL;
+    private static final long DEFAULT_STATION_UPDATE_FREQUENCY = TimeUnit.SECONDS.toMillis(10);
+    private static final long DEFAULT_SYNC_FREQUENCY = TimeUnit.SECONDS.toMillis(10);
+    private long updateFrequency = DEFAULT_STATION_UPDATE_FREQUENCY;
+    private long syncFrequency = DEFAULT_SYNC_FREQUENCY;
     private final StationDetector detector;
     private final WebServiceAdapter webServiceAdapter;
     private Thread monitorTread;
-    private final BlockingQueue<Address[]> detectionQueue = new LinkedBlockingQueue<>(1000);
-    // <MAC, Station>
-    private final Map<String, Station> stationsConfig = new HashMap<>();
+    private long lastSyncTime = System.currentTimeMillis();
+    private final BlockingQueue<String[]> detectionQueue = new LinkedBlockingQueue<>(1000);
     // <MAC, StationTtl>
-    private final Map<String, StationTtl> onlineStations = new HashMap<>();
+    private final Map<String, Station> detectedStations = new HashMap<>();
 
-    class StationTtl {
-        Station station;
+    class Station {
+        String address;
+        boolean active = true;
         long lastUpdateTime;
 
-        public StationTtl(Station station, long lastUpdateTime) {
-            this.station = station;
-            this.lastUpdateTime = lastUpdateTime;
+        public Station(String address) {
+            this.address = address;
         }
     }
 
     public StationMonitor(Config config) {
         detector = new StationDetector(this);
-        webServiceAdapter = new WebServiceAdapter(config.gcmApi, config.resetApi);
+        webServiceAdapter = new WebServiceAdapter(config.gcmApi, config.resetApi, config.syncApi);
+        if (config.stationUpdateFrequency > 0) {
+            this.updateFrequency = config.stationUpdateFrequency;
+        }
+
+        if (config.syncFrequency > 0) {
+            this.syncFrequency = config.syncFrequency;
+        }
     }
 
     public void startMonitoring() {
@@ -75,21 +81,19 @@ public class StationMonitor implements Runnable, StationDetector.StationDetector
 
         try {
             detector.start();
-            readStationsConfig();
 
             while (true) {
-                final Address[] detectedStations = detectionQueue.poll(10, TimeUnit.SECONDS);
-                if (detectedStations != null) {
-                    for (Address address : detectedStations) {
-                        final String mac = address.toString();
-
-                        if (stationsConfig.containsKey(mac)) {
-                            onStationDetected(stationsConfig.get(mac));
-                        }
-                    }
+                if (lastSyncTime < (System.currentTimeMillis() - syncFrequency)) {
+                    syncActive(lastSyncTime);
+                    lastSyncTime = System.currentTimeMillis();
                 }
 
-                updateStationsState();
+                final String[] detectedStations = detectionQueue.poll(10, TimeUnit.SECONDS);
+                if (detectedStations != null && detectedStations.length > 0) {
+                    final Set<String> detectedUnique = Sets.newHashSet(detectedStations);
+
+                    onStationsDetected(detectedUnique.toArray(new String[detectedUnique.size()]));
+                }
             }
         } catch (InterruptedException ignore) {
         } catch (Exception ex) {
@@ -101,57 +105,64 @@ public class StationMonitor implements Runnable, StationDetector.StationDetector
         Log.d("Stations monitor stopped");
     }
 
-    private void readStationsConfig() {
-        Log.d("Reading stations configuration");
+    private void onStationsDetected(final String[] newStations) {
+        final List<String> newActiveStations = new ArrayList<>();
 
-        try {
-            final List<Station> stations = StorageConnector.open().selectStations();
-            if (stations == null || stations.isEmpty()) {
-                throw new MonitorException("No stations found in storage configuration");
+        for (String address : newStations) {
+            final Station cachedStation = detectedStations.get(address);
+            if (cachedStation == null) {
+                detectedStations.put(address, new Station(address));
+                newActiveStations.add(address);
+                Log.d("New station detected: " + address);
+                continue;
             }
 
-            final Config config = StorageConnector.open().selectConfig();
-            if (config != null && config.ttl > 0) {
-                this.ttl = config.ttl;
+            if (cachedStation.active && cachedStation.lastUpdateTime <= (System.currentTimeMillis() - updateFrequency)) {
+                cachedStation.lastUpdateTime = System.currentTimeMillis();
+                newActiveStations.add(address);
+                Log.d("TTL updated for station: " + address);
             }
+        }
 
-            for (Station station : stations) {
-                stationsConfig.put(station.address, station);
+        if (!newActiveStations.isEmpty()) {
+            final String[] stationsArr = newActiveStations.toArray(new String[newActiveStations.size()]);
+            final StatusResponse response = webServiceAdapter.sendStatusMsg(stationsArr);
+
+            if (response != null && response.getStatus() == Response.Status.success) {
+                updateStationsState(stationsArr, response.getActive());
             }
-
-            Log.d("Found " + stations.size() + " stations in configuration, TTL: " + this.ttl);
-        } catch (IOException ex) {
-            throw new MonitorException("Reading storage configuration failed", ex);
         }
     }
 
-    private void onStationDetected(final Station station) {
-        if (onlineStations.containsKey(station.address)) {
-            onlineStations.get(station.address).lastUpdateTime = System.currentTimeMillis();
-
-            Log.d("TTL updated for station: " + station.address);
-        } else {
-            onlineStations.put(station.address, new StationTtl(station, System.currentTimeMillis()));
-
-            Log.d("New station detected: " + station.address);
-            webServiceAdapter.sendWelcomeMsg(station.address);
+    private void updateStationsState(final String[] allStations, final String[] activeStations) {
+        final Set<String> activeSet = activeStations != null ? Sets.newHashSet(activeStations) : null;
+        for (String station : allStations) {
+            final Station cachedStation = detectedStations.get(station);
+            if (cachedStation != null) {
+                cachedStation.active = (activeSet != null && activeSet.contains(station));
+            }
         }
     }
 
-    private void updateStationsState() {
-        final List<StationTtl> stations = Lists.newArrayList(onlineStations.values());
-        for (StationTtl station : stations) {
-            if (station.lastUpdateTime < (System.currentTimeMillis() - ttl)) {
-                Log.d("Station TTL expired, station= " + station.station.address
-                        + " last updated=" + new Date(station.lastUpdateTime));
-                onlineStations.remove(station.station.address);
-                webServiceAdapter.sendGoodbyMsg(station.station.address);
+    /**
+     * Retrieves lately activated stations
+     *
+     * @param lastSyncTime
+     */
+    private void syncActive(long lastSyncTime) {
+        final StatusResponse response = webServiceAdapter.sendSyncMessage(lastSyncTime);
+        if (response != null && response.getActive() != null) {
+            for (String active : response.getActive()) {
+                final Station cachedStation = detectedStations.get(active);
+                if (cachedStation != null) {
+                    cachedStation.active = true;
+                }
             }
         }
     }
 
     @Override
-    public void onDetect(Address[] stations) {
+    public void onDetect(String[] stations) {
         synchronized (detectionQueue) {
             detectionQueue.offer(stations);
         }
